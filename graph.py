@@ -40,6 +40,8 @@ class Graph:
 		self.height = 0
 		
 		for i in range(100*len(self.nodes)):
+			self.step(1e-1, drag=True)
+		for i in range(100*len(self.nodes)):
 			self.step(1e-1)
 
 		self.truncate()
@@ -74,7 +76,7 @@ class Graph:
 		self.width = bounds[1][0] - bounds[0][0]
 		self.height = bounds[1][1] - bounds[0][1]
 		
-	def step(self, rate):
+	def step(self, rate, drag=False):
 		force = {}
 		for key in self.nodes:
 			force[key] = [0, 0]
@@ -108,12 +110,13 @@ class Graph:
 				force[dst][0] -= f[0]
 				force[dst][1] -= f[1]
 		
-		# drag inputs and outputs
-		drag = 20
-		for key in self.inputs:
-			force[key][0] -= drag
-		for key in self.outputs:
-			force[key][0] += drag
+		if drag:
+			# drag inputs and outputs
+			drag = 100
+			for key in self.inputs:
+				force[key][0] -= drag
+			for key in self.outputs:
+				force[key][0] += drag
 
 		# apply forces
 		for key, node in self.nodes.items():
