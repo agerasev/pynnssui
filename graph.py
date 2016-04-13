@@ -3,12 +3,14 @@
 import numpy as np
 from math import sqrt
 from copy import copy
+from pynn import Loss
 
 
 class Graph:
 	class Node:
-		def __init__(self, name, pos):
+		def __init__(self, name, color, pos):
 			self.name = name
+			self.color = color
 			self.rad = 30
 			self.pos = pos
 
@@ -21,8 +23,13 @@ class Graph:
 		self.nodes = {}
 		rf = 100*len(net.nodes)
 		for key, node in enumerate(net.nodes):
+			name = type(node).__name__
+			color = 'orange'
+			if isinstance(node, Loss):
+				name = node.nodetype().__name__
+				color = 'red'
 			self.nodes[key] = self.Node(
-				type(net.nodes[key]).__name__,
+				name, color,
 				rf*np.random.rand(2)
 			)
 
@@ -138,7 +145,7 @@ class Graph:
 
 		# draw nodes
 		for key, node in self.nodes.items():
-			s += '<circle cx="%f" cy="%f" r="%f" fill="orange"/>' % (node.pos[0], node.pos[1], node.rad)
+			s += '<circle cx="%f" cy="%f" r="%f" fill="%s"/>' % (node.pos[0], node.pos[1], node.rad, node.color)
 			size = min(3.2*node.rad/len(node.name), 0.5*node.rad)
 			s += '<text fill="white" font-size="%f" text-anchor="middle" font-family="Verdana" x="%f" y="%f">%s</text>' % (size, node.pos[0], node.pos[1] + 0.3*size, node.name)
 
