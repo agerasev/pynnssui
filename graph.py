@@ -1,115 +1,121 @@
 #!/usr/bin/python3
 
-from random import random
+import numpy as np
 from math import sqrt
 from copy import copy
+
 
 class Graph:
 	class Node:
 		def __init__(self, name, pos):
 			self.name = name
-			if name == 'MatrixProduct':
-				self.name = 'Matrix'
 			self.rad = 30
 			self.pos = pos
-			
+
 	class Path:
 		def __init__(self, src, dst):
 			self.src = src
 			self.dst = dst
-			
+
 	def __init__(self, net):
 		self.nodes = {}
 		rf = 100*len(net.nodes)
-		for key in net.nodes:
-			self.nodes[key] = self.Node(type(net.nodes[key]).__name__, [rf*random(), rf*random()])
-			
+		for key, node in enumerate(net.nodes):
+			self.nodes[key] = self.Node(
+				type(net.nodes[key]).__name__,
+				rf*np.random.rand(2)
+			)
+
 		self.inputs = {}
 		self.outputs = {}
 		self.paths = []
-		for i in range(len(net.paths)):
-			src = net.paths[i].src[0]
-			dst = net.paths[i].dst[0]
+		for path in net.paths:
+			src = path.src[0]
+			dst = path.dst[0]
 			self.paths.append(self.Path(src, dst))
-			if src < 0:
-				self.inputs[dst] = self.nodes[dst]
-			if dst < 0:
-				self.outputs[src] = self.nodes[src]
-			
+		for ipath in net.ipaths:
+			dst = ipath.dst[0]
+			self.paths.append(self.Path(-1, dst))
+			self.inputs[dst] = self.nodes[dst]
+		for opath in net.opaths:
+			src = opath.src[0]
+			self.paths.append(self.Path(src, -1))
+			self.outputs[src] = self.nodes[src]
+
 		self.width = 0
 		self.height = 0
-		
+
 		for i in range(100*len(self.nodes)):
 			self.step(1e-1, drag=True)
 		for i in range(100*len(self.nodes)):
 			self.step(1e-1)
 
 		self.truncate()
-			
+
 	def truncate(self):
 		# determine bounds for scene
-		bounds = [[None,None],[None,None]]
+		bounds = [np.zeros(2), np.zeros(2)]
 		border = 15
+		first = True
 		for key, node in self.nodes.items():
 			value = node.pos[0] - node.rad - border
-			if bounds[0][0] is None or bounds[0][0] > value:
+			if first or bounds[0][0] > value:
 				bounds[0][0] = value
-				
+
 			value = node.pos[1] - node.rad - border
-			if bounds[0][1] is None or bounds[0][1] > value:
+			if first or bounds[0][1] > value:
 				bounds[0][1] = value
-				
+
 			value = node.pos[0] + node.rad + border
-			if bounds[1][0] is None or bounds[1][0] < value:
+			if first or bounds[1][0] < value:
 				bounds[1][0] = value
-				
+
 			value = node.pos[1] + node.rad + border
-			if bounds[1][1] is None or bounds[1][1] < value:
+			if first or bounds[1][1] < value:
 				bounds[1][1] = value
-		
+
+			first = False
+
 		# move nodes to (0,0)
 		for key, node in self.nodes.items():
-			node.pos[0] -= bounds[0][0]
-			node.pos[1] -= bounds[0][1]
-		
+			node.pos -= bounds[0]
+
 		# set image size
-		self.width = bounds[1][0] - bounds[0][0]
-		self.height = bounds[1][1] - bounds[0][1]
-		
+		self.size = bounds[1] - bounds[0]
+
 	def step(self, rate, drag=False):
 		force = {}
 		for key in self.nodes:
-			force[key] = [0, 0]
-		
+			force[key] = np.zeros(2)
+
 		# iterate each pair of nodes
 		fdist = 1.4
 		for src, sn in self.nodes.items():
 			for dst, dn in self.nodes.items():
 				if src <= dst:
 					continue
-				
+
 				# check nodes connected
 				conn = False
 				for i in range(len(self.paths)):
 					path = self.paths[i]
-					if (path.src == src and path.dst == dst) or (path.src == dst and path.dst == src):
+					fconn = (path.src == src and path.dst == dst)
+					bconn = (path.src == dst and path.dst == src)
+					if fconn or bconn:
 						conn = True
 						break
 
 				# compute force
-				d = [dn.pos[0] - sn.pos[0], dn.pos[1] - sn.pos[1]]
-				l = sqrt(d[0]**2 + d[1]**2)
-				d[0] /= l
-				d[1] /= l
+				d = dn.pos - sn.pos
+				l = sqrt(np.dot(d, d))
+				d /= l
 				m = l - fdist*(sn.rad + dn.rad)
 				if not conn:
 					m = min(m, 0)
-				f = [d[0]*m, d[1]*m]
-				force[src][0] += f[0]
-				force[src][1] += f[1]
-				force[dst][0] -= f[0]
-				force[dst][1] -= f[1]
-		
+				f = d*m
+				force[src] += f
+				force[dst] -= f
+
 		if drag:
 			# drag inputs and outputs
 			drag = 100
@@ -120,12 +126,10 @@ class Graph:
 
 		# apply forces
 		for key, node in self.nodes.items():
-			node.pos[0] += force[key][0]*rate
-			node.pos[1] += force[key][1]*rate
-		
+			node.pos += force[key]*rate
 
 	def svg(self):
-		s = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="%d" height="%d">' % (self.width, self.height)
+		s = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="%d" height="%d">' % (self.size[0], self.size[1])
 		s += '''
 		<marker id="Arrow" markerWidth="6" markerHeight="6" viewBox="-3 -3 6 6" refX="2" refY="0" markerUnits="strokeWidth" orient="auto">
 		<polygon points="-1,0 -3,3 3,0 -3,-3" fill="gray"/>
@@ -137,7 +141,7 @@ class Graph:
 			s += '<circle cx="%f" cy="%f" r="%f" fill="orange"/>' % (node.pos[0], node.pos[1], node.rad)
 			size = min(3.2*node.rad/len(node.name), 0.5*node.rad)
 			s += '<text fill="white" font-size="%f" text-anchor="middle" font-family="Verdana" x="%f" y="%f">%s</text>' % (size, node.pos[0], node.pos[1] + 0.3*size, node.name)
-		
+
 		# draw paths
 		fline = 1.1
 		for i in range(len(self.paths)):
@@ -150,16 +154,13 @@ class Graph:
 			dp = copy(dst.pos)
 			sr = src.rad
 			dr = dst.rad
-			d = [dp[0] - sp[0], dp[1] - sp[1]]
-			l = sqrt(d[0]**2 + d[1]**2)
-			d[0] /= l
-			d[1] /= l
-			sp[0] += d[0]*sr*fline
-			sp[1] += d[1]*sr*fline
-			dp[0] -= d[0]*dr*fline
-			dp[1] -= d[1]*dr*fline
+			d = dp - sp
+			l = sqrt(np.dot(d, d))
+			d /= l
+			sp += d*sr*fline
+			dp -= d*dr*fline
 			s += '<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="gray" stroke-width="2" marker-end="url(#Arrow)"/>' % (sp[0], sp[1], dp[0], dp[1])
-		
+
 		# draw inputs and outputs
 		lioline = 10
 		for key, node in self.inputs.items():
