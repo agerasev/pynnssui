@@ -3,7 +3,7 @@
 import numpy as np
 from math import sqrt
 from copy import copy
-from pynn import Loss
+from pynn import Network, Loss
 
 
 class Graph:
@@ -25,7 +25,9 @@ class Graph:
 		for key, node in enumerate(net.nodes):
 			name = type(node).__name__
 			color = 'orange'
-			if isinstance(node, Loss):
+			if isinstance(node, Network):
+				color = 'blue'
+			elif isinstance(node, Loss):
 				name = node.nodetype().__name__
 				color = 'red'
 			self.nodes[key] = self.Node(
